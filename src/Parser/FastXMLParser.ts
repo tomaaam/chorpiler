@@ -16,15 +16,21 @@ import { deleteFromArray } from "../util/helpers.js";
 import { InteractionNet } from "./InteractionNet.js";
 import { INetParser } from "./Parser.js";
 import { Message } from "./Elements/Message.js";
+import { root } from "viem/chains";
+
+const DEFAULT_PARTICIPANT_ID = "__default_participant__";
 
 enum Elements {
   rootElements = "definitions",
   choreographies = "choreography",
+  processes = "process", //Phase 1
+  collaborations = "collaboration", //Phase 2
   messages = "message",
   subChoreographies = "subChoreography",
   callChoreographies = "callChoreography",
   participants = "participant",
   tasks = "choreographyTask",
+  processTasks = "task", //standard BPMN Task
   flows = "sequenceFlow",
   messageFlow = "messageFlow",
   participantsRef = "participantRef",
@@ -92,14 +98,20 @@ export class INetFastXMLParser implements INetParser {
       }
     }
 
-    private translateElements(choreography: any) {
+    private translateElements(choreography: any, isProcess = false) {
       this
         // need to parse flows first, so they're accessible
         .parseFlows(choreography[Elements.flows])
         .parseMessageFlows(choreography[Elements.messageFlow])
         .translateStartEvent(choreography[Elements.startEvent])
         .translateEndEvent(choreography[Elements.endEvent])
-        .translateTasks(choreography[Elements.tasks])
+        ;
+        if (isProcess) {
+          this.translateProcessTasks(choreography[Elements.processTasks]);
+        } else {
+          this.translateTasks(choreography[Elements.tasks]);
+        }
+        this
         .translateSubChoreography(choreography[Elements.subChoreographies])
         .translateCallChoreography(choreography[Elements.callChoreographies])
         // translate events before gateways
@@ -336,6 +348,49 @@ export class INetFastXMLParser implements INetParser {
       this.iNet.namedMessages.set(message.modelID, message);
       messageFlow.message = message;
       return message;
+    }
+
+    // PHASE 1
+    translateProcess(process: any): InteractionNet {
+      this.iNet.id = process[Properties.id];
+
+      const defaultParticipant = new Participant(
+        DEFAULT_PARTICIPANT_ID,
+        process[Properties.name] ?? "Process",
+      );
+      this.iNet.participants.set(DEFAULT_PARTICIPANT_ID, defaultParticipant);
+      this.translateElements(process, true);
+      return this.iNet;  
+    }
+
+    private translateProcessTasks(tasks: any): this {
+      if (tasks == null) return this;
+
+      for (const task of tasks) {
+        if (!task[Elements.participantsRef]) {
+          task[Elements.participantsRef] = [DEFAULT_PARTICIPANT_ID];
+        }
+        if (!task[Properties.initiator]) {
+          task[Properties.initiator] = DEFAULT_PARTICIPANT_ID;
+        }
+        const { initiator, respondents } = this.parseInitiatorRespondents(task);
+        const transition = this.addTransition(
+          new Transition(
+            task[Properties.id],
+            new TaskLabel(
+              initiator!, 
+              respondents!, 
+              task[Properties.name],
+              task[Properties.id],
+              TaskType.Task,
+              undefined,
+            ),
+          ),
+        );
+        this.translateIncomingFlows(transition, task[Elements.ins]);
+        this.translateOutgoingFlows(transition, task[Elements.outs]);
+      }
+      return this;
     }
 
     /**
@@ -641,39 +696,58 @@ export class INetFastXMLParser implements INetParser {
       if (!(Elements.rootElements in parsed))
         return reject(new Error("No root elements found, malformed XML?"));
       const rootElements = parsed[Elements.rootElements][0];
-      if (
-        !(Elements.choreographies in rootElements) ||
-        rootElements[Elements.choreographies].length < 1
-      ) {
-        return reject(new Error("No choreography found"));
-      }
+      
+      const hasChoreographies = 
+        Elements.choreographies in rootElements && 
+        rootElements[Elements.choreographies].length > 0;
 
-      const callList = this.extractCallGraph(
-        rootElements[Elements.choreographies],
-      );
+      const hasProcesses = 
+        Elements.processes in rootElements && 
+        rootElements[Elements.processes].length > 0;
+      
+      if (!hasChoreographies && !hasProcesses) return reject(new Error("No choreography or process found"));
+
+      
       const messages = this.translateMessages(rootElements[Elements.messages]);
       const iNets = new Map<string, InteractionNet>();
-      for (const choreography of rootElements[Elements.choreographies]) {
-        const iNetTranslator = new INetFastXMLParser.INetTranslator();
-        iNetTranslator.callList = callList;
-        iNetTranslator.messages = messages;
-        try {
-          const iNet = iNetTranslator.translate(choreography);
-          iNets.set(iNet.id, iNet);
-        } catch (error) {
-          return reject(error);
-        }
-      }
-      for (const iNet of iNets.values()) {
-        const calls = callList.get(iNet.id);
-        if (calls != undefined) {
-          for (const callID of calls) {
-            const calledNet = iNets.get(callID)!;
-            iNet.callList.set(callID, calledNet);
-            calledNet.isCalled = true;
+
+      if (hasChoreographies) {
+        const callList = this.extractCallGraph(rootElements[Elements.choreographies]);
+        for (const choreography of rootElements[Elements.choreographies]) {
+          const iNetTranslator = new INetFastXMLParser.INetTranslator();
+          iNetTranslator.callList = callList;
+          iNetTranslator.messages = messages;
+          try {
+            const iNet = iNetTranslator.translate(choreography);
+            iNets.set(iNet.id, iNet);
+          } catch (error) {
+            return reject(error);
           }
         }
+        for (const iNet of iNets.values()) {
+          const calls = callList.get(iNet.id);
+          if (calls != undefined) {
+            for (const callID of calls) {
+              const calledNet = iNets.get(callID)!;
+              iNet.callList.set(callID, calledNet);
+              calledNet.isCalled = true;
+            }
+          }
+        }
+      }  
+      if (hasProcesses && !hasChoreographies) {
+        for (const process of rootElements[Elements.processes]) {
+          const t = new INetFastXMLParser.INetTranslator();
+          t.messages = messages;
+          try {
+            const iNet = t.translateProcess(process);
+            iNets.set(iNet.id, iNet);
+          } catch (e) {
+            return reject(e);
+          }
+        }  
       }
+      
       //console.log(iNets);
       return resolve([...iNets.values()]);
     });
@@ -681,6 +755,7 @@ export class INetFastXMLParser implements INetParser {
 
   translateMessages(messages: any) {
     const parsed = new Map<string, Message>();
+    if (!messages) return parsed;
     for (const message of messages) {
       parsed.set(
         message[Properties.id],

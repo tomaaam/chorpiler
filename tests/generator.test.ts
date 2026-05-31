@@ -152,7 +152,7 @@ describe("Generation of edge cases", () => {
       await compileBpmn(parser, "sub-choreo-chained", [], [], false);
     });
 
-    it.only("Messages case to Sol Contract", async () => {
+    it("Messages case to Sol Contract", async () => { //changed here from it.only
       await compileBpmn(
         parser,
         "messages",

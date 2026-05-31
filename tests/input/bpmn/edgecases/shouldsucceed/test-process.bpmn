@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             id="definitions_1">
+
+  <process id="process_1" name="OrderProcess">
+    <startEvent id="start_1">
+      <outgoing>flow_1</outgoing>
+    </startEvent>
+
+    <task id="task_1" name="Place Order">
+      <incoming>flow_1</incoming>
+      <outgoing>flow_2</outgoing>
+    </task>
+
+    <task id="task_2" name="Confirm Order">
+      <incoming>flow_2</incoming>
+      <outgoing>flow_3</outgoing>
+    </task>
+
+    <endEvent id="end_1">
+      <incoming>flow_3</incoming>
+    </endEvent>
+
+    <sequenceFlow id="flow_1" sourceRef="start_1" targetRef="task_1"/>
+    <sequenceFlow id="flow_2" sourceRef="task_1" targetRef="task_2"/>
+    <sequenceFlow id="flow_3" sourceRef="task_2" targetRef="end_1"/>
+  </process>
+
+</definitions>

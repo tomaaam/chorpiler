@@ -1,0 +1,1 @@
+{"processID":0,"isCalled":false,"isInstanced":false,"tasks":{"task_a":{"id":1,"initiator":0,"processID":0},"task_b":{"id":2,"initiator":0,"processID":0},"task_c":{"id":3,"initiator":0,"processID":0}},"participants":{"__default_participant__":0},"states":{"task_a":1,"task_b":2,"task_c":4,"gw_join":24},"calls":{},"subModels":{}}

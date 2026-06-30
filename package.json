@@ -21,7 +21,9 @@
     "preversion": "npm run build && npm run test/pckg",
     "clean": "rm -rf lib",
     "script/simu": "node --import tsx/esm tests/helpers/scripts/generate-logs.ts",
-    "script/fuzz": "node --import tsx/esm tests/helpers/scripts/generate-nonlogs.ts"
+    "script/fuzz": "node --import tsx/esm tests/helpers/scripts/generate-nonlogs.ts",
+    "script/compare": "node --import tsx/esm tests/helpers/scripts/compare-auth.ts",
+    "script/viz": "node --import tsx/esm tests/helpers/scripts/visualize.ts"
   },
   "author": "Fabian Stiehle",
   "license": "ISC",

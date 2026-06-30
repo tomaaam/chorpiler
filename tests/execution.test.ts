@@ -19,7 +19,7 @@ import {
 import { CONTRACTS_PATH } from "./config.js";
 import path from "node:path";
 
-const REPLAY_NON_CONFORMING = false;
+const REPLAY_NON_CONFORMING = true;
 
 /**
  * Test suite for process execution functionality

@@ -1,0 +1,26 @@
+digraph "process_lanes" {
+  rankdir=LR;
+  node [fontname="Helvetica" fontsize=10];
+  edge [color="#666666" arrowsize=0.7];
+  "start_1" [shape=box style=filled fillcolor="#e4e4e7" color="#999999" fontsize=8 label="start"];
+  "place_start_1" [shape=circle width=0.3 label="" style=filled fillcolor="#333333"];
+  "flow_1" [shape=circle width=0.22 label=""];
+  "end_1" [shape=box style=filled fillcolor="#e4e4e7" color="#999999" fontsize=8 label="end"];
+  "place_end_1" [shape=doublecircle width=0.25 label=""];
+  "flow_4" [shape=circle width=0.22 label=""];
+  "task_request" [shape=box style="filled,rounded" fillcolor="#fde8df" color="#d97757" label="Request\n[Buyer]"];
+  "flow_2" [shape=circle width=0.22 label=""];
+  "task_approve" [shape=box style="filled,rounded" fillcolor="#fde8df" color="#d97757" label="Approve\n[Seller]"];
+  "flow_3" [shape=circle width=0.22 label=""];
+  "task_pay" [shape=box style="filled,rounded" fillcolor="#fde8df" color="#d97757" label="Pay\n[Buyer]"];
+  "start_1" -> "flow_1";
+  "place_start_1" -> "start_1";
+  "flow_1" -> "task_request";
+  "end_1" -> "place_end_1";
+  "flow_4" -> "end_1";
+  "task_request" -> "flow_2";
+  "flow_2" -> "task_approve";
+  "task_approve" -> "flow_3";
+  "flow_3" -> "task_pay";
+  "task_pay" -> "flow_4";
+}

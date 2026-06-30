@@ -89,12 +89,12 @@ contract {{{modelID}}} is IProcessExecution {
     {{#options.debug}}
     console.log(
       "{{{modelID}}}: new token state is %d",
-       _tokenState
+       tokenState
     );
 
     {{/options.debug}}
     if (tokenState != 0) {
-      enact(0);
+      this.enact(0);
     }
   }
 

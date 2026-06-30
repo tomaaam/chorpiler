@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             id="definitions_1">
+  <process id="process_and" name="AndProcess">
+    <startEvent id="start_1">
+      <outgoing>flow_1</outgoing>
+    </startEvent>
+    <task id="task_a" name="Task A">
+      <incoming>flow_1</incoming>
+      <outgoing>flow_2</outgoing>
+    </task>
+    <parallelGateway id="gw_split">
+      <incoming>flow_2</incoming>
+      <outgoing>flow_3</outgoing>
+      <outgoing>flow_4</outgoing>
+    </parallelGateway>
+    <task id="task_b" name="Task B">
+      <incoming>flow_3</incoming>
+      <outgoing>flow_5</outgoing>
+    </task>
+    <task id="task_c" name="Task C">
+      <incoming>flow_4</incoming>
+      <outgoing>flow_6</outgoing>
+    </task>
+    <parallelGateway id="gw_join">
+      <incoming>flow_5</incoming>
+      <incoming>flow_6</incoming>
+      <outgoing>flow_7</outgoing>
+    </parallelGateway>
+    <endEvent id="end_1">
+      <incoming>flow_7</incoming>
+    </endEvent>
+    <sequenceFlow id="flow_1" sourceRef="start_1" targetRef="task_a"/>
+    <sequenceFlow id="flow_2" sourceRef="task_a" targetRef="gw_split"/>
+    <sequenceFlow id="flow_3" sourceRef="gw_split" targetRef="task_b"/>
+    <sequenceFlow id="flow_4" sourceRef="gw_split" targetRef="task_c"/>
+    <sequenceFlow id="flow_5" sourceRef="task_b" targetRef="gw_join"/>
+    <sequenceFlow id="flow_6" sourceRef="task_c" targetRef="gw_join"/>
+    <sequenceFlow id="flow_7" sourceRef="gw_join" targetRef="end_1"/>
+  </process>
+</definitions>

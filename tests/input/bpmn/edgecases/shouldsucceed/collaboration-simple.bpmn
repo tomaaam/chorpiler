@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             id="definitions_1">
+
+  <collaboration id="Collaboration_1">
+    <participant id="Participant_customer" name="Customer" processRef="process_customer"/>
+    <participant id="Participant_restaurant" name="Restaurant" processRef="process_restaurant"/>
+    <messageFlow id="mf_order" sourceRef="task_send_order" targetRef="task_recv_order"/>
+    <messageFlow id="mf_confirmation" sourceRef="task_send_confirmation" targetRef="task_recv_confirmation"/>
+  </collaboration>
+
+  <process id="process_customer" name="Customer">
+    <startEvent id="start_customer">
+      <outgoing>flow_c1</outgoing>
+    </startEvent>
+    <task id="task_send_order" name="Order">
+      <incoming>flow_c1</incoming>
+      <outgoing>flow_c2</outgoing>
+    </task>
+    <task id="task_recv_confirmation" name="Receive Confirmation">
+      <incoming>flow_c2</incoming>
+      <outgoing>flow_c3</outgoing>
+    </task>
+    <endEvent id="end_customer">
+      <incoming>flow_c3</incoming>
+    </endEvent>
+    <sequenceFlow id="flow_c1" sourceRef="start_customer" targetRef="task_send_order"/>
+    <sequenceFlow id="flow_c2" sourceRef="task_send_order" targetRef="task_recv_confirmation"/>
+    <sequenceFlow id="flow_c3" sourceRef="task_recv_confirmation" targetRef="end_customer"/>
+  </process>
+
+  <process id="process_restaurant" name="Restaurant">
+    <startEvent id="start_restaurant">
+      <outgoing>flow_r1</outgoing>
+    </startEvent>
+    <task id="task_recv_order" name="Receive Order">
+      <incoming>flow_r1</incoming>
+      <outgoing>flow_r2</outgoing>
+    </task>
+    <task id="task_send_confirmation" name="Confirmation">
+      <incoming>flow_r2</incoming>
+      <outgoing>flow_r3</outgoing>
+    </task>
+    <endEvent id="end_restaurant">
+      <incoming>flow_r3</incoming>
+    </endEvent>
+    <sequenceFlow id="flow_r1" sourceRef="start_restaurant" targetRef="task_recv_order"/>
+    <sequenceFlow id="flow_r2" sourceRef="task_recv_order" targetRef="task_send_confirmation"/>
+    <sequenceFlow id="flow_r3" sourceRef="task_send_confirmation" targetRef="end_restaurant"/>
+  </process>
+
+</definitions>

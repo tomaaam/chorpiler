@@ -38,6 +38,7 @@ export enum TaskType {
   Task,
   SubChoreography,
   CallChoreography,
+  ProcessTask, // BPMN process task without role authorization (no lane / no participant)
 }
 
 export class CallLabel extends Label {

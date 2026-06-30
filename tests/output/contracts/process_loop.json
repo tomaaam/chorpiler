@@ -1,0 +1,1 @@
+{"processID":0,"isCalled":false,"isInstanced":false,"tasks":{"task_a":{"id":1,"initiator":0,"processID":0}},"participants":{"__default_participant__":0},"states":{"task_a":1,"gw_split_flow_exit":1},"calls":{},"subModels":{}}

@@ -30,7 +30,7 @@ export class XESFastXMLParser {
         for (const trace of log[0]["trace"]) {
           const events = new Array<Event>();
 
-          for (const event of trace["event"]) {
+          for (const event of trace["event"] ?? []) {
             let name = null;
             let id = null;
             let from = null;

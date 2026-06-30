@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             id="definitions_1">
+  <process id="process_lanes" name="LanesProcess">
+    <laneSet id="laneSet_1">
+      <lane id="Lane_buyer" name="Buyer">
+        <flowNodeRef>task_request</flowNodeRef>
+        <flowNodeRef>task_pay</flowNodeRef>
+      </lane>
+      <lane id="Lane_seller" name="Seller">
+        <flowNodeRef>task_approve</flowNodeRef>
+      </lane>
+    </laneSet>
+    <startEvent id="start_1">
+      <outgoing>flow_1</outgoing>
+    </startEvent>
+    <task id="task_request" name="Request">
+      <incoming>flow_1</incoming>
+      <outgoing>flow_2</outgoing>
+    </task>
+    <task id="task_approve" name="Approve">
+      <incoming>flow_2</incoming>
+      <outgoing>flow_3</outgoing>
+    </task>
+    <task id="task_pay" name="Pay">
+      <incoming>flow_3</incoming>
+      <outgoing>flow_4</outgoing>
+    </task>
+    <endEvent id="end_1">
+      <incoming>flow_4</incoming>
+    </endEvent>
+    <sequenceFlow id="flow_1" sourceRef="start_1" targetRef="task_request"/>
+    <sequenceFlow id="flow_2" sourceRef="task_request" targetRef="task_approve"/>
+    <sequenceFlow id="flow_3" sourceRef="task_approve" targetRef="task_pay"/>
+    <sequenceFlow id="flow_4" sourceRef="task_pay" targetRef="end_1"/>
+  </process>
+</definitions>

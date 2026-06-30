@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             id="definitions_1">
+  <process id="process_loop" name="LoopProcess">
+    <startEvent id="start_1">
+      <outgoing>flow_1</outgoing>
+    </startEvent>
+    <exclusiveGateway id="gw_merge">
+      <incoming>flow_1</incoming>
+      <incoming>flow_back</incoming>
+      <outgoing>flow_2</outgoing>
+    </exclusiveGateway>
+    <task id="task_a" name="Task A">
+      <incoming>flow_2</incoming>
+      <outgoing>flow_3</outgoing>
+    </task>
+    <exclusiveGateway id="gw_split" default="flow_exit">
+      <incoming>flow_3</incoming>
+      <outgoing>flow_back</outgoing>
+      <outgoing>flow_exit</outgoing>
+    </exclusiveGateway>
+    <endEvent id="end_1">
+      <incoming>flow_exit</incoming>
+    </endEvent>
+    <sequenceFlow id="flow_1" sourceRef="start_1" targetRef="gw_merge"/>
+    <sequenceFlow id="flow_2" sourceRef="gw_merge" targetRef="task_a"/>
+    <sequenceFlow id="flow_3" sourceRef="task_a" targetRef="gw_split"/>
+    <sequenceFlow id="flow_back" sourceRef="gw_split" targetRef="gw_merge">
+      <conditionExpression xsi:type="tFormalExpression" language="Solidity">repeat==true</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow_exit" sourceRef="gw_split" targetRef="end_1"/>
+  </process>
+</definitions>

@@ -1,0 +1,1 @@
+{"processID":0,"isCalled":false,"isInstanced":false,"tasks":{"task_send_order":{"id":1,"initiator":0,"processID":0},"task_send_confirmation":{"id":2,"initiator":1,"processID":0}},"participants":{"Participant_customer":0,"Participant_restaurant":1},"states":{"collab_and_split":1,"collab_and_join":24,"task_send_order":6,"task_send_confirmation":96},"calls":{},"subModels":{}}

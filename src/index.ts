@@ -39,6 +39,6 @@ export * from "./Parser/InteractionNet.js";
 
 export * from "./Parser/InteractionNet.js";
 export * from "./Parser/Parser.js";
-export * from "./Parser/InteractionNet.js";
+export * from "./Parser/FastXMLParser.js";
 
 export * from "./util/EventLog/XESParser.js";

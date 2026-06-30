@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<log xes.version="1.0">
+  <global scope="event">
+    <string key="id" value="Task ID" />
+    <string key="sourceRef" value="Participant ID" />
+  </global>
+  <trace>
+  </trace>
+</log>

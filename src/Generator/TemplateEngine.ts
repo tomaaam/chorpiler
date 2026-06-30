@@ -15,6 +15,8 @@ export interface CompileOptions {
   loopProtection: boolean; // adds a NOOP operation (ID=0), which is necessary to process looping behaviour, should be set to true.
   events: boolean; // emit Events on task execution
   debug: boolean; // add Hardhat's console.log debug info
+  enforceAuthorization: boolean; // if true, emit `msg.sender == participants[x]` checks per task.
+  // Set false for the "Open" participant model, where any caller may execute any task.
 }
 
 export interface ITemplateEngine {
@@ -26,6 +28,7 @@ export interface ITemplateEngine {
     loopProtection?: boolean;
     events?: boolean;
     debug?: boolean;
+    enforceAuthorization?: boolean;
   }): Promise<{ target: string; encoding: TriggerEncoding }>;
   setTemplatePath(path: string): void;
   getTemplate(): Promise<string>;
@@ -47,12 +50,14 @@ export abstract class TemplateEngine implements ITemplateEngine {
     loopProtection?: boolean;
     events?: boolean;
     debug?: boolean;
+    enforceAuthorization?: boolean;
   }) {
     const options = {
       unfoldSubNets: _options?.unfoldSubNets ?? false,
       loopProtection: _options?.loopProtection ?? true,
       events: _options?.events ?? false,
       debug: _options?.debug ?? false,
+      enforceAuthorization: _options?.enforceAuthorization ?? true,
     };
     if (this.iNet.initial == null || this.iNet.end == null) {
       throw new Error("Invalid InteractionNet");

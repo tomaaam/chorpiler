@@ -27,6 +27,7 @@ class MustacheProcessEncoding {
   static fromEncoding(
     encoding: Encoding.Process,
     isInstanced: boolean = false,
+    enforceAuthorization: boolean = true,
   ) {
     const states = new Map<number, Encoding.Transition[]>();
     const taskWithCaseVar = new Array<TaskWithCaseVar>();
@@ -42,8 +43,9 @@ class MustacheProcessEncoding {
             taskWithCaseVar.push(
               new TaskWithCaseVar(
                 consume.toString(),
-                this.convertTransition(transition, isInstanced),
+                this.convertTransition(transition, isInstanced, enforceAuthorization),
                 transition.message,
+                enforceAuthorization,
               ),
             );
           }
@@ -65,6 +67,7 @@ class MustacheProcessEncoding {
         states,
         isInstanced,
         transitionsWithCaseVar,
+        enforceAuthorization,
       ),
       taskWithCaseVar,
     );
@@ -74,6 +77,7 @@ class MustacheProcessEncoding {
     states: Map<number, Encoding.Transition[]>,
     isInstanced: boolean,
     excludeTransitions: Set<Encoding.Transition> = new Set(),
+    enforceAuthorization: boolean = true,
   ): State[] {
     const stateArray = Array.from(states.entries()).map(
       ([consume, transitions]) => {
@@ -85,7 +89,7 @@ class MustacheProcessEncoding {
         return new State(
           consume.toString(),
           filteredTransitions.map((t) =>
-            this.convertTransition(t, isInstanced),
+            this.convertTransition(t, isInstanced, enforceAuthorization),
           ),
         );
       },
@@ -100,6 +104,7 @@ class MustacheProcessEncoding {
   private static convertTransition(
     t: Encoding.Transition,
     isInstanced: boolean,
+    enforceAuthorization: boolean = true,
   ): Transition {
     return new Transition(
       t.consume.toString(),
@@ -118,6 +123,7 @@ class MustacheProcessEncoding {
       (t.outTo ? isSubChoreography(t.outTo) : false) ||
         (t.inFrom ? isSubChoreography(t.inFrom) : false),
       isInstanced,
+      enforceAuthorization,
     );
   }
 
@@ -154,13 +160,19 @@ export class MustacheEncoding
   numberOfProcesses = () => (this.subProcesses.length + 1).toString();
 
   static fromEncoding(encoding: Encoding.MainProcess): MustacheEncoding {
+    const enforceAuthorization = encoding.options.enforceAuthorization ?? true;
     const main = MustacheProcessEncoding.fromEncoding(
       encoding,
       encoding.isInstanced,
+      enforceAuthorization,
     );
     const subProcesses = Array.from(encoding.subProcesses.values()).map(
       (subProcess) =>
-        MustacheProcessEncoding.fromEncoding(subProcess, encoding.isInstanced),
+        MustacheProcessEncoding.fromEncoding(
+          subProcess,
+          encoding.isInstanced,
+          enforceAuthorization,
+        ),
     );
     //console.log(encoding.states);
 
@@ -200,6 +212,7 @@ class Transition {
     public isCall: boolean,
     public isSub: boolean,
     public isInstanced: boolean,
+    public enforceAuthorization: boolean = true,
   ) {
     const conditionParts: string[] = [];
 
@@ -219,7 +232,8 @@ class Transition {
       });
     }
 
-    if (this.initiator) {
+    // "Open" participant model: skip the sender check so any caller may execute the task.
+    if (this.initiator && this.enforceAuthorization) {
       const participantsRef = this.isInstanced
         ? `processData[instanceID].participants[${this.initiator}]`
         : `participants[${this.initiator}]`;
@@ -348,6 +362,7 @@ class TaskWithCaseVar {
     public consume: string,
     public transition: Transition,
     message: Message | null = null,
+    public enforceAuthorization: boolean = true,
   ) {
     this.produce = transition.produce;
     this.taskID = null; // No check on taskID as specified
@@ -374,7 +389,7 @@ class TaskWithCaseVar {
       );
     }
 
-    if (this.initiator) {
+    if (this.initiator && this.enforceAuthorization) {
       const participantsRef = this.isInstanced
         ? `processData[instanceID].participants[${this.initiator}]`
         : `participants[${this.initiator}]`;

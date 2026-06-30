@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             id="definitions_1">
+  <process id="process_xor" name="XorProcess">
+    <startEvent id="start_1">
+      <outgoing>flow_1</outgoing>
+    </startEvent>
+    <task id="task_a" name="Task A">
+      <incoming>flow_1</incoming>
+      <outgoing>flow_2</outgoing>
+    </task>
+    <exclusiveGateway id="gw_split" default="flow_skip">
+      <incoming>flow_2</incoming>
+      <outgoing>flow_3</outgoing>
+      <outgoing>flow_skip</outgoing>
+    </exclusiveGateway>
+    <task id="task_b" name="Task B">
+      <incoming>flow_3</incoming>
+      <outgoing>flow_4</outgoing>
+    </task>
+    <exclusiveGateway id="gw_merge">
+      <incoming>flow_4</incoming>
+      <incoming>flow_skip</incoming>
+      <outgoing>flow_5</outgoing>
+    </exclusiveGateway>
+    <task id="task_c" name="Task C">
+      <incoming>flow_5</incoming>
+      <outgoing>flow_6</outgoing>
+    </task>
+    <endEvent id="end_1">
+      <incoming>flow_6</incoming>
+    </endEvent>
+    <sequenceFlow id="flow_1" sourceRef="start_1" targetRef="task_a"/>
+    <sequenceFlow id="flow_2" sourceRef="task_a" targetRef="gw_split"/>
+    <sequenceFlow id="flow_3" sourceRef="gw_split" targetRef="task_b">
+      <conditionExpression xsi:type="tFormalExpression" language="Solidity">x==true</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow_skip" sourceRef="gw_split" targetRef="gw_merge"/>
+    <sequenceFlow id="flow_4" sourceRef="task_b" targetRef="gw_merge"/>
+    <sequenceFlow id="flow_5" sourceRef="gw_merge" targetRef="task_c"/>
+    <sequenceFlow id="flow_6" sourceRef="task_c" targetRef="end_1"/>
+  </process>
+</definitions>

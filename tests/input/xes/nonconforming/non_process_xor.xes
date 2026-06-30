@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<log xes.version="1.0">
+  <global scope="event">
+    <string key="id" value="Task ID" />
+    <string key="sourceRef" value="Participant ID" />
+  </global>
+  <trace>
+    <event>
+      <string key="id" value="task_c" />
+      <string key="sourceRef" value="__default_participant__" />
+      <string key="concept:name" value="Task C" />
+    </event>
+    <event>
+      <string key="id" value="task_a" />
+      <string key="sourceRef" value="__default_participant__" />
+      <string key="concept:name" value="Task A" />
+    </event>
+  </trace>
+</log>

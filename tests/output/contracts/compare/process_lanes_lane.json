@@ -1,0 +1,1 @@
+{"processID":0,"isCalled":false,"isInstanced":false,"tasks":{"task_request":{"id":1,"initiator":0,"processID":0},"task_approve":{"id":2,"initiator":1,"processID":0},"task_pay":{"id":3,"initiator":0,"processID":0}},"participants":{"Lane_buyer":0,"Lane_seller":1},"states":{"task_request":1,"task_approve":2,"task_pay":4},"calls":{},"subModels":{}}

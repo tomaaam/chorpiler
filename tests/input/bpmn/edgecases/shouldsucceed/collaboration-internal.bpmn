@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" id="definitions_1">
+  <collaboration id="collab_2">
+    <participant id="participant_customer" name="Customer" processRef="process_customer"/>
+    <participant id="participant_restaurant" name="Restaurant" processRef="process_restaurant"/>
+    <messageFlow id="msgflow_1" sourceRef="task_order" targetRef="task_receive"/>
+    <messageFlow id="msgflow_2" sourceRef="task_deliver" targetRef="task_confirm"/>
+  </collaboration>
+  <process id="process_customer" name="Customer Process">
+    <startEvent id="start_c">
+      <outgoing>flow_c1</outgoing>
+    </startEvent>
+    <task id="task_browse" name="Browse Menu">
+      <incoming>flow_c1</incoming>
+      <outgoing>flow_c2</outgoing>
+    </task>
+    <task id="task_order" name="Order Pizza">
+      <incoming>flow_c2</incoming>
+      <outgoing>flow_c3</outgoing>
+    </task>
+    <task id="task_confirm" name="Confirm Delivery">
+      <incoming>flow_c3</incoming>
+      <outgoing>flow_c4</outgoing>
+    </task>
+    <endEvent id="end_c">
+      <incoming>flow_c4</incoming>
+    </endEvent>
+    <sequenceFlow id="flow_c1" sourceRef="start_c" targetRef="task_browse"/>
+    <sequenceFlow id="flow_c2" sourceRef="task_browse" targetRef="task_order"/>
+    <sequenceFlow id="flow_c3" sourceRef="task_order" targetRef="task_confirm"/>
+    <sequenceFlow id="flow_c4" sourceRef="task_confirm" targetRef="end_c"/>
+  </process>
+  <process id="process_restaurant" name="Restaurant Process">
+    <startEvent id="start_r">
+      <outgoing>flow_r1</outgoing>
+    </startEvent>
+    <task id="task_receive" name="Receive Order">
+      <incoming>flow_r1</incoming>
+      <outgoing>flow_r2</outgoing>
+    </task>
+    <task id="task_prepare" name="Prepare Pizza">
+      <incoming>flow_r2</incoming>
+      <outgoing>flow_r3</outgoing>
+    </task>
+    <task id="task_deliver" name="Deliver Pizza">
+      <incoming>flow_r3</incoming>
+      <outgoing>flow_r4</outgoing>
+    </task>
+    <endEvent id="end_r">
+      <incoming>flow_r4</incoming>
+    </endEvent>
+    <sequenceFlow id="flow_r1" sourceRef="start_r" targetRef="task_receive"/>
+    <sequenceFlow id="flow_r2" sourceRef="task_receive" targetRef="task_prepare"/>
+    <sequenceFlow id="flow_r3" sourceRef="task_prepare" targetRef="task_deliver"/>
+    <sequenceFlow id="flow_r4" sourceRef="task_deliver" targetRef="end_r"/>
+  </process>
+</definitions>

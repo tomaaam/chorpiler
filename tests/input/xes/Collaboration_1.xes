@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<log xes.version="1.0">
+	<global scope="event">
+		<string key="id" value="Task ID" />
+		<string key="sourceRef" value="Participant ID" />
+	</global>
+	<trace>
+		<event>
+			<string key="id" value="task_send_order" />
+			<string key="sourceRef" value="Participant_customer" />
+			<string key="targetRef" value="Participant_restaurant" />
+			<string key="concept:name" value="Order" />
+		</event>
+		<event>
+			<string key="id" value="task_send_confirmation" />
+			<string key="sourceRef" value="Participant_restaurant" />
+			<string key="targetRef" value="Participant_customer" />
+			<string key="concept:name" value="Confirmation" />
+		</event>
+	</trace>
+</log>

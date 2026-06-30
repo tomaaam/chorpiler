@@ -1,0 +1,1 @@
+{"processID":0,"isCalled":false,"isInstanced":false,"tasks":{"task_request":{"id":1,"initiator":0,"processID":0},"task_approve":{"id":2,"initiator":0,"processID":0},"task_pay":{"id":3,"initiator":0,"processID":0}},"participants":{"__default_participant__":0},"states":{"task_request":1,"task_approve":2,"task_pay":4},"calls":{},"subModels":{}}

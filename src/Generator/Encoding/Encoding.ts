@@ -35,6 +35,7 @@ export class MainProcess extends Process {
     loopProtection: true,
     events: false,
     debug: false,
+    enforceAuthorization: true,
   };
   constructor() {
     super(0);

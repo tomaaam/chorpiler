@@ -16,9 +16,8 @@ import { deleteFromArray } from "../util/helpers.js";
 import { InteractionNet } from "./InteractionNet.js";
 import { INetParser } from "./Parser.js";
 import { Message } from "./Elements/Message.js";
-import { root } from "viem/chains";
 
-const DEFAULT_PARTICIPANT_ID = "__default_participant__";
+const DEFAULT_PARTICIPANT_ID = "__default_participant__"; //dummy participant for diagrams with no real participants
 
 enum Elements {
   rootElements = "definitions",
@@ -44,6 +43,9 @@ enum Elements {
   eventGateway = "eventBasedGateway",
   outs = "outgoing",
   ins = "incoming",
+  laneSet = "laneSet",
+  lane = "lane",
+  flowNodeRef = "flowNodeRef",
 }
 enum Properties {
   id = "@_id",
@@ -57,12 +59,32 @@ enum Properties {
   innerPar = "@_innerParticipantRef",
   outerPar = "@_outerParticipantRef",
   message = "@_messageRef",
+  processRef = "@_processRef",
+}
+
+type MessageFlowEntry = { //for every task that participates in a message flow
+  partnerTaskId: string,
+  senderParticipant: Participant,
+  receiverParticipant: Participant,
+  isSender: boolean; //if true, task becomes transition; if false, task is skipped
+};
+
+/**
+ * Selects how participants/authorization are derived for process diagrams.
+ * - SingleActor: one dummy participant; every task carries an `msg.sender` check against it.
+ * - Open: one dummy participant, but NO `msg.sender` check (any caller may execute any task).
+ * - LaneBased: each lane becomes a participant; tasks are authorized against their lane.
+ */
+export enum AuthorizationMode {
+  SingleActor = "SingleActor",
+  Open = "Open",
+  LaneBased = "LaneBased",
 }
 
 export class INetFastXMLParser implements INetParser {
   parser: XMLParser = new XMLParser({
     ignoreAttributes: false,
-    removeNSPrefix: true,
+    removeNSPrefix: true, //drop bpmn2 prefix to support any BPMN exporterD
     isArray: (_, __, ___, isAttribute) => {
       return !isAttribute;
     },
@@ -70,10 +92,12 @@ export class INetFastXMLParser implements INetParser {
 
   private static INetTranslator = class {
     iNet = new InteractionNet();
-    flows = new Map<string, { flow: any; place: Place | null }>();
-    messageFlows = new Map<string, { flow: any; message: Message | null }>();
+    flows = new Map<string, { flow: any; place: Place | null }>(); //register every flow ID upfront
+    messageFlows = new Map<string, { flow: any; message: Message | null }>(); //same for messageFlows
     callList = new Map<string, string[]>();
     messages = new Map<string, Message>();
+    authMode: AuthorizationMode = AuthorizationMode.SingleActor;
+    taskLane = new Map<string, string>(); // taskId -> lane participant modelID (LaneBased only)
 
     translate(choreography: any): InteractionNet {
       // need to parse participants first, so we can reference them
@@ -201,6 +225,10 @@ export class INetFastXMLParser implements INetParser {
         );
 
         const translator = new INetFastXMLParser.INetTranslator();
+        // share the parent's messages and message flows so references inside
+        // the sub-choreography resolve correctly
+        translator.messages = this.messages;
+        translator.messageFlows = this.messageFlows;
         // set subNet participants
         const subNet = translator.iNet;
         subNet.participants.set(initiator.id, initiator);
@@ -317,18 +345,15 @@ export class INetFastXMLParser implements INetParser {
     }
 
     /**
-     * Parses a message from a task element by resolving the message flow reference.
-     *
-     * @param task - The task element containing message flow references
-     * @returns The parsed Message object, or undefined if no message flow is referenced
-     * @throws Error if the task has multiple messages (only one allowed) or references an unknown message flow
+     * Resolves a task's messageFlowRef through the message flow registry to a Message object.
+     * Returns undefined if the task has no message flow or the message has no label.
      */
     private parseMessage(task: any): Message | undefined {
       const messageID = task[Elements.messageFlowRef];
       if (!messageID || messageID.length == 0) return undefined;
       if (messageID.length > 1)
         throw new Error(
-          `Task (${task}) has multiple messages (only one allowed)`,
+          `Task (${task[Properties.id]}) has multiple messages (only one allowed)`,
         );
       const messageFlow = this.messageFlows.get(messageID[0]);
       if (messageFlow == undefined) {
@@ -350,28 +375,77 @@ export class INetFastXMLParser implements INetParser {
       return message;
     }
 
-    // PHASE 1
+    /** PHASE 1
+      * Counterpart to translateChoreography — sets up participants from lanes or a dummy, 
+      * then delegates to the shared translation pipeline.
+      */
     translateProcess(process: any): InteractionNet {
       this.iNet.id = process[Properties.id];
 
-      const defaultParticipant = new Participant(
-        DEFAULT_PARTICIPANT_ID,
-        process[Properties.name] ?? "Process",
-      );
-      this.iNet.participants.set(DEFAULT_PARTICIPANT_ID, defaultParticipant);
+      // LaneBased: derive one participant per lane. Falls back to a single dummy participant when the diagram has no lanes. 
+      const usingLanes =
+        this.authMode === AuthorizationMode.LaneBased && this.parseLanes(process);
+
+      if (!usingLanes) {
+        const defaultParticipant = new Participant(
+          DEFAULT_PARTICIPANT_ID,
+          process[Properties.name] ?? "Process",
+        );
+        this.iNet.participants.set(DEFAULT_PARTICIPANT_ID, defaultParticipant);
+      }
       this.translateElements(process, true);
-      return this.iNet;  
+      return this.iNet;
     }
 
+    /**
+     * Parses BPMN lanes into participants and records which lane each task
+     * belongs to (via flowNodeRef). Returns true if at least one lane mapping
+     * was found.
+     */
+    private parseLanes(process: any): boolean {
+      const laneSets = process[Elements.laneSet];
+      if (!laneSets) return false;
+
+      let found = false;
+      for (const laneSet of laneSets) {
+        for (const lane of laneSet[Elements.lane] ?? []) {
+          const laneId = lane[Properties.id];
+          this.iNet.participants.set(
+            laneId,
+            new Participant(laneId, lane[Properties.name] ?? laneId),
+          );
+          for (const nodeRef of lane[Elements.flowNodeRef] ?? []) {
+            // flowNodeRef is text-only; fast-xml-parser yields a string,
+            // but guard for the object form just in case.
+            const ref = typeof nodeRef === "string" ? nodeRef : nodeRef["#text"];
+            if (ref) {
+              this.taskLane.set(ref, laneId);
+              found = true;
+            }
+          }
+        }
+      }
+      return found;
+    }
+    
+    /**
+     * Translates standard BPMN tasks for process diagrams. Since process tasks carry no
+     * initiator or participantRef in the XML, these are injected synthetically so that
+     * the shared parseInitiatorRespondents logic can be reused.
+     */
     private translateProcessTasks(tasks: any): this {
       if (tasks == null) return this;
 
       for (const task of tasks) {
+        // LaneBased assigns the task's lane participant; otherwise the single
+        // dummy participant is used.
+        const initiatorId =
+          this.taskLane.get(task[Properties.id]) ?? DEFAULT_PARTICIPANT_ID;
         if (!task[Elements.participantsRef]) {
-          task[Elements.participantsRef] = [DEFAULT_PARTICIPANT_ID];
+          task[Elements.participantsRef] = [initiatorId];
         }
         if (!task[Properties.initiator]) {
-          task[Properties.initiator] = DEFAULT_PARTICIPANT_ID;
+          task[Properties.initiator] = initiatorId;
         }
         const { initiator, respondents } = this.parseInitiatorRespondents(task);
         const transition = this.addTransition(
@@ -393,11 +467,171 @@ export class INetFastXMLParser implements INetParser {
       return this;
     }
 
+    /** PHASE 2
+    * Translates a BPMN collaboration into one InteractionNet. An internal task is
+    * owned by its pool participant; a send task and its matching receive task are
+    * merged into a single labelled transition. Pools' separate start/end events are
+    * joined by a global AND-split/join (see translateCollaborationStartEnd).
+    */
+    translateCollaboration(
+      collaboration: any, 
+      processes: any[], 
+      participantByProcess: Map<string, Participant>, 
+      messageFlowIndex: Map<string, MessageFlowEntry>,
+    ): InteractionNet {
+      this.iNet.id = collaboration[Properties.id];
+
+      for (const [, participant] of participantByProcess) {
+        this.iNet.participants.set(participant.id, participant);
+      }
+
+      for (const process of processes) {
+        this.parseFlows(process[Elements.flows]);
+      }
+
+      if (processes.length === 1) {
+        this.translateStartEvent(processes[0][Elements.startEvent]);
+        this.translateEndEvent(processes[0][Elements.endEvent]);
+      } else {
+        this.translateCollaborationStartEnd(processes);
+      }
+
+      const receiverTaskIds = new Set<string>(); // receive tasks are absorbed into their sender, so skip them below
+      for (const [taskId, entry] of messageFlowIndex) {
+        if (!entry.isSender) receiverTaskIds.add(taskId);
+      }
+
+      for (const process of processes) {
+        const processId = process[Properties.id];
+        const poolParticipant = participantByProcess.get(processId)!;
+
+        for (const task of process[Elements.processTasks] ?? []) {
+          const taskId = task[Properties.id];
+          if (receiverTaskIds.has(taskId)) continue;
+
+          const entry = messageFlowIndex.get(taskId);
+          let transition: Transition;
+
+          if (entry) { // message sender: merge the partner receive task into one transition (sender = initiator, receiver = respondent)
+            transition = this.addTransition(
+              new Transition(
+                taskId, 
+                new TaskLabel(
+                  entry.senderParticipant,
+                  [entry.receiverParticipant],
+                  task[Properties.name],
+                  taskId,
+                  TaskType.Task,
+                  undefined,
+                ),
+              ),
+            );
+            this.translateIncomingFlows(transition, task[Elements.ins]);
+            this.translateOutgoingFlows(transition, task[Elements.outs]);
+            const receiverTask = this.findCollaborationTask(processes, entry.partnerTaskId);
+            if (receiverTask) {
+              this.translateIncomingFlows(transition, receiverTask[Elements.ins]);
+              this.translateOutgoingFlows(transition, receiverTask[Elements.outs]);
+            }
+          } else {
+            transition = this.addTransition(
+              new Transition(
+                taskId,
+                new TaskLabel(
+                  poolParticipant, 
+                  [],
+                  task[Properties.name],
+                  taskId,
+                  TaskType.Task,
+                  undefined,
+                ),
+              ),
+            );
+            this.translateIncomingFlows(transition, task[Elements.ins]);
+            this.translateOutgoingFlows(transition, task[Elements.outs]);
+          }
+        }
+      }
+      for (const process of processes) {
+        this.translateExclusiveGateways(process[Elements.exclusiveGateway]);
+        this.translateParallelGateways(process[Elements.parallelGateway]);
+        this.translateEventGateways(process[Elements.eventGateway]);
+      }
+
+      this.checkFlows();
+      return this.iNet;
+    }
+
+    findCollaborationTask(processes: any[], taskId: string): any | undefined { // fold the receive task's flows in, so the transition fires only when both pools are ready
+      for (const process of processes) {
+        for (const task of process[Elements.processTasks] ?? []) {
+          if (task[Properties.id] === taskId) return task;
+        }
+      }
+      return undefined;
+    }
+
     /**
-     * Event-based Gateway: merge incoming flows and use the merged place to connect to all outgoing events
-     * must be translated after events
-     * @param gateways
-     * @returns
+      * Models parallel pool execution by wrapping all pool start/end events with a
+      * single global AND-split (on start) and AND-join (on end), so all pools must
+      * complete for the collaboration to finish.
+    */
+
+    translateCollaborationStartEnd(processes: any[]): void {
+      const globalStart = new Place("collab_start", PlaceType.Start);
+      this.addPlace(globalStart);
+      this.iNet.initial = globalStart;
+
+      const andSplit = new Transition(
+        "collab_and_split",
+        new Label(LabelType.ParallelDiverging),
+      );
+      this.addTransition(andSplit);
+      this.linkSourceToTarget(globalStart, andSplit);
+
+      const globalEnd = new Place("collab_end", PlaceType.End);
+      this.addPlace(globalEnd);
+      this.iNet.end = globalEnd;
+
+      const andJoin = new Transition(
+        "collab_and_join",
+        new Label(LabelType.ParallelConverging),
+      );
+      this.addTransition(andJoin);
+      this.linkSourceToTarget(andJoin, globalEnd);
+
+      for (const process of processes) {
+        const starts = process[Elements.startEvent];
+        if (!starts || starts.length !== 1) {
+          throw new Error("Each process in a collaboration must have exactly one start event");
+        }
+        const start = starts[0];
+        const startTransition = new Transition(start[Properties.id], new Label(LabelType.Start));
+        const startPlace = new Place("place_" + start[Properties.id]);
+        this.linkSourceToTarget(andSplit, startPlace);
+        this.linkSourceToTarget(startPlace, startTransition);
+        this.addTransition(startTransition);
+        this.addPlace(startPlace);
+        this.translateOutgoingFlows(startTransition, start[Elements.outs]);
+
+        const ends = process[Elements.endEvent];
+        if (!ends || ends.length !== 1) {
+          throw new Error("Each process in a collaboration must have exactly one end event");
+        }
+        const end = ends[0];
+        const endTransition = new Transition(end[Properties.id], new Label(LabelType.End));
+        const endPlace = new Place("place_" + end[Properties.id]);
+        this.linkSourceToTarget(endTransition, endPlace);
+        this.linkSourceToTarget(endPlace, andJoin);
+        this.addTransition(endTransition);
+        this.addPlace(endPlace);
+        this.translateIncomingFlows(endTransition, end[Elements.ins]);
+      }
+    }
+
+    /**
+     * Event-based gateways: merges all incoming flows into one place and re-wires each outgoing
+     * event directly to it. Must run after tasks, since it re-uses places they already created.
      */
     private translateEventGateways(gateways: any) {
       if (gateways == null) return this;
@@ -445,14 +679,14 @@ export class INetFastXMLParser implements INetParser {
       return this;
     }
 
+    // In the event-based gateway context, each outgoing branch is a choreography task acting as a receive event.
     isEvent(el: Transition) {
       return el instanceof Transition && el.label.type === LabelType.Task;
     }
 
     /**
-     * XOR gateways: create a transition and place for each incoming and outgoing flow
-     * @param gateways
-     * @returns
+     * XOR gateways: converging side merges incoming flows into one place; diverging side creates
+     * one transition per outgoing flow with a guard condition attached.
      */
     private translateExclusiveGateways(gateways: any): this {
       if (gateways == null) return this;
@@ -549,9 +783,8 @@ export class INetFastXMLParser implements INetParser {
     }
 
     /**
-     * AND Gateways: Add a transition to emulate the gateway
-     * @param gateways
-     * @returns
+     * AND gateways: converging side adds a transition that consumes one token from each incoming
+     * flow; diverging side adds a transition that produces one token on each outgoing flow.
      */
     private translateParallelGateways(gateways: any): this {
       if (gateways == null) return this;
@@ -596,6 +829,8 @@ export class INetFastXMLParser implements INetParser {
       return this;
     }
 
+    // Validates that every registered flow was claimed by a transition. An unconnected flow
+    // usually means the diagram contains an unsupported element type (e.g. intermediate events).
     private checkFlows() {
       if (this.flows.size === 0) throw new Error(`No flows to connect`);
 
@@ -637,6 +872,8 @@ export class INetFastXMLParser implements INetParser {
       return this.flows.get(id);
     }
 
+    // Assigns a place to a flow. If the flow already has a place (claimed by another element),
+    // the two places are merged rather than replaced, preserving all existing arc connections.
     private setFlowPlace(id: string, place: Place): Place {
       const existing = this.getFlow(id);
       if (!existing) throw Error(`Flow not found: ${id}`);
@@ -682,15 +919,20 @@ export class INetFastXMLParser implements INetParser {
       }
     }
 
+    // Multiple incoming flows share a single place so that a token on any one of them enables the transition (OR-join).
     translateIncomingFlows(transition: Transition, inIDs: any[]) {
       const place = new Place(inIDs.join("_")); // flow merge
       for (const id of inIDs) {
         this.linkSourceToTarget(this.setFlowPlace(id, place), transition);
       }
     }
+
   };
 
-  fromXML(xml: Buffer): Promise<InteractionNet[]> {
+  fromXML(
+    xml: Buffer,
+    authMode: AuthorizationMode = AuthorizationMode.SingleActor,
+  ): Promise<InteractionNet[]> {
     return new Promise<InteractionNet[]>((resolve, reject) => {
       const parsed = this.parser.parse(xml.toString());
       if (!(Elements.rootElements in parsed))
@@ -704,8 +946,13 @@ export class INetFastXMLParser implements INetParser {
       const hasProcesses = 
         Elements.processes in rootElements && 
         rootElements[Elements.processes].length > 0;
+
+      const hasCollaborations = 
+        Elements.collaborations in rootElements &&
+        rootElements[Elements.collaborations].length > 0;
       
-      if (!hasChoreographies && !hasProcesses) return reject(new Error("No choreography or process found"));
+      // Only process standalone process diagrams; collaboration-embedded processes are handled in Phase 2
+      if (!hasChoreographies && !hasProcesses && !hasCollaborations) return reject(new Error("No choreography, process or collaboration found"));
 
       
       const messages = this.translateMessages(rootElements[Elements.messages]);
@@ -724,6 +971,8 @@ export class INetFastXMLParser implements INetParser {
             return reject(error);
           }
         }
+        // Wire up cross-net call references after all nets are built,
+        // since a caller may reference a net that was parsed later in the file.
         for (const iNet of iNets.values()) {
           const calls = callList.get(iNet.id);
           if (calls != undefined) {
@@ -735,10 +984,11 @@ export class INetFastXMLParser implements INetParser {
           }
         }
       }  
-      if (hasProcesses && !hasChoreographies) {
+      if (hasProcesses && !hasChoreographies && !hasCollaborations) {
         for (const process of rootElements[Elements.processes]) {
           const t = new INetFastXMLParser.INetTranslator();
           t.messages = messages;
+          t.authMode = authMode;
           try {
             const iNet = t.translateProcess(process);
             iNets.set(iNet.id, iNet);
@@ -747,8 +997,27 @@ export class INetFastXMLParser implements INetParser {
           }
         }  
       }
-      
-      //console.log(iNets);
+
+      if (hasCollaborations) {
+        const collaboration = rootElements[Elements.collaborations][0];
+        const processes = rootElements[Elements.processes] ?? [];
+        const { participantByprocess, messageFlowIndex } =
+          this.buildCollaborationIndex(collaboration, processes);
+        const t = new INetFastXMLParser.INetTranslator();
+        t.messages = messages;
+        try {
+          const iNet = t.translateCollaboration(
+            collaboration, 
+            processes,
+            participantByprocess,
+            messageFlowIndex,
+          );
+          iNets.set(iNet.id, iNet)
+        } catch (e) {
+          return reject(e);
+        }
+      }
+
       return resolve([...iNets.values()]);
     });
   }
@@ -765,6 +1034,8 @@ export class INetFastXMLParser implements INetParser {
     return parsed;
   }
 
+  // Scans all choreographies for callChoreography elements and builds a map of caller → [callee IDs].
+  // Must run before translation so the translator can validate call targets exist.
   extractCallGraph(choreographies: any) {
     const callList = new Map<string, string[]>();
 
@@ -786,4 +1057,53 @@ export class INetFastXMLParser implements INetParser {
     }
     return callList;
   }
+
+  /**
+   * Builds two lookup structures needed by translateCollaboration:
+   * participantByProcess maps each process ID to its pool participant, and
+   * messageFlowIndex maps each task involved in a message flow to a MessageFlowEntry
+   * so translateCollaboration can identify senders, receivers, and their partners.
+   */
+  buildCollaborationIndex(collaboration: any, processes: any[]) {
+    const participantByprocess = new Map<string, Participant>();
+    for (const par of collaboration[Elements.participants] ?? []) {
+      const ref = par[Properties.processRef];
+      if (!ref) continue;
+      participantByprocess.set(ref, new Participant(par[Properties.id], par[Properties.name]));
+    }
+
+    const taskToProcess = new Map<string, string>();
+    for (const process of processes) {
+      for (const task of process[Elements.processTasks] ?? []) {
+        taskToProcess.set(task[Properties.id], process[Properties.id]);
+      }
+    }
+
+    const messageFlowIndex = new Map<string, MessageFlowEntry>();
+    for (const flow of collaboration[Elements.messageFlow] ?? []) {
+      const sendTaskId = flow[Properties.source];
+      const recvTaskId = flow[Properties.target];
+
+      const senderProcessId = taskToProcess.get(sendTaskId);
+      const receiverProcessId = taskToProcess.get(recvTaskId);
+
+      if (!senderProcessId)
+        throw new Error(`messageFlow source task (${sendTaskId}) not found in any process`);
+      if (!receiverProcessId)
+        throw new Error(`messageFlow target task (${recvTaskId}) not found in any process`);
+
+      const senderParticipant = participantByprocess.get(senderProcessId);
+      const receiverParticipant = participantByprocess.get(receiverProcessId);
+
+      if (!senderParticipant)
+        throw new Error(`process (${senderProcessId}) has no pool participant with processRef`);
+      if (!receiverParticipant)
+        throw new Error(`process (${receiverProcessId}) has no pool participant with processRef`);
+      
+      messageFlowIndex.set(sendTaskId, { partnerTaskId: recvTaskId, senderParticipant, receiverParticipant, isSender : true});
+      messageFlowIndex.set(recvTaskId, {partnerTaskId: sendTaskId, senderParticipant, receiverParticipant, isSender: false});
+    }
+    return { participantByprocess, messageFlowIndex }
+  }
+
 }

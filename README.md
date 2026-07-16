@@ -21,6 +21,8 @@ Chorpiler has additional tools that help with testing and interacting with such 
 | Looping behaviour  | ✔          |
 | Uncontrolled flow merge  | ✔          |
 
+I addition to choreographies, Chorpiler supports BPMN **process diagrams** and **collaboration diagrams**, which are translated onto the same internal representation (see [Multi-Model Support](#multi-model-support-process--collaboration-diagrams)).
+
 ## Usage
 
 Install and use through [npm](https://www.npmjs.com/package/chorpiler).
@@ -93,9 +95,34 @@ of Business Processes on Blockchain. In: BPM. Springer, Cham (2017) 130–146
 [2]: Decker, G., Weske, M.: Local enforceability in interaction Petri nets. In: BPM.
 Volume 4714 of LNCS., Springer, Cham (2007) 305–319
 
-## Multi-Model Support: Added Test Cases
+## Multi-Model Support: Process & Collaboration Diagrams
 
-Test cases added for BPMN **process** and **collaboration** diagram support.
+Chorpiler compiles all three BPMN diagram types. Process and collaboration diagrams are translated into the same Interaction Petri Net as choreographies, so the encoder and Solidity backend are reused unchanged.
+
+- **Process diagrams**: tasks, start/end events, XOR/AND/event-based gateways, case variables. A process names no participants, so the parser assigns them according to an authorisation model (see below).
+- **Collaboration diagrams**: multiple pools connected by message flows. A send task and its matching receive task are merged into one transition (initiator = sender, respondent = receiver); internal tasks are owned by their pool; a synthetic AND-split/join bridges the pools' separate start and end events.
+
+### Authorisation models for process diagrams
+
+Three participant models can be generated from the same diagram:
+
+| Model | Participants | On-chain check |
+|---|---|---|
+| `SingleActor` (default) | one default participant | `msg.sender == participants[0]` on every task |
+| `Open` | one default participant | none — any account may execute an enabled task |
+| `LaneBased` | one per BPMN lane | each task checks its own lane's participant |
+
+```js
+import chorpiler, { AuthorizationMode } from 'chorpiler';
+
+const parser = new chorpiler.Parser();
+const iNets = await parser.fromXML(bpmnXML, AuthorizationMode.LaneBased);
+const gen = new chorpiler.generators.sol.DefaultContractGenerator(iNets[0]);
+const { target } = await gen.compile({ enforceAuthorization: true }); // false = Open
+```
+
+### Added Test Cases
+
 Each case has a BPMN model, a conforming event log (a valid run, must complete),
 and a non-conforming log (an invalid run, must be rejected).
 
@@ -121,6 +148,7 @@ and a non-conforming log (an invalid run, must be rejected).
 - **Generation** (net → Solidity): [generator.test.ts](tests/generator.test.ts)
 - **On-chain execution** (deploy on Hardhat, replay logs): [execution.test.ts](tests/execution.test.ts) — set `REPLAY_NON_CONFORMING = true` to also run the non-conforming logs.
 - **Gas comparison** of the three authorisation models: [compare-auth.ts](tests/helpers/scripts/compare-auth.ts) — `npm run script/compare`
+- **Interaction-net visualisation**: [visualize.ts](tests/helpers/scripts/visualize.ts) — `npm run script/viz -- <model.bpmn> [SingleActor|Open|LaneBased] [LR|TB]`
 
 > **Naming note:** event logs and generated contracts are named after the
 > internal process/collaboration `id`, not the `.bpmn` filename. For example

@@ -126,24 +126,24 @@ const { target } = await gen.compile({ enforceAuthorization: true }); // false =
 Each case has a BPMN model, a conforming event log (a valid run, must complete),
 and a non-conforming log (an invalid run, must be rejected).
 
-### Process diagrams
+#### Process diagrams
 | Scenario | BPMN model | Conforming log | Non-conforming log |
 |---|---|---|---|
 | Sequence + parallel (AND) | [process-and.bpmn](tests/input/bpmn/edgecases/shouldsucceed/process-and.bpmn) | [process_and.xes](tests/input/xes/process_and.xes) | [non_process_and.xes](tests/input/xes/nonconforming/non_process_and.xes) |
 | Exclusive choice (XOR, both branches) | [process-xor.bpmn](tests/input/bpmn/edgecases/shouldsucceed/process-xor.bpmn) | [process_xor.xes](tests/input/xes/process_xor.xes) | [non_process_xor.xes](tests/input/xes/nonconforming/non_process_xor.xes) |
 | Loop | [process-loop.bpmn](tests/input/bpmn/edgecases/shouldsucceed/process-loop.bpmn) | [process_loop.xes](tests/input/xes/process_loop.xes) | [non_process_loop.xes](tests/input/xes/nonconforming/non_process_loop.xes) |
 
-### Collaboration diagrams
+#### Collaboration diagrams
 | Scenario | BPMN model | Conforming log | Non-conforming log |
 |---|---|---|---|
 | Two-way message exchange | [collaboration-simple.bpmn](tests/input/bpmn/edgecases/shouldsucceed/collaboration-simple.bpmn) | [Collaboration_1.xes](tests/input/xes/Collaboration_1.xes) | [non_Collaboration_1.xes](tests/input/xes/nonconforming/non_Collaboration_1.xes) |
 | Internal tasks + two message flows | [collaboration-internal.bpmn](tests/input/bpmn/edgecases/shouldsucceed/collaboration-internal.bpmn) | [collab_2.xes](tests/input/xes/collab_2.xes) | [non_collab_2.xes](tests/input/xes/nonconforming/non_collab_2.xes) |
 
-### Authorisation models (process diagrams)
+#### Authorisation model tests
 - Fixture: [process-lanes.bpmn](tests/input/bpmn/process-lanes.bpmn)
 - Tests: the **"Participant authorization models"** block in [generator.test.ts](tests/generator.test.ts) — generates single-actor, open, and lane-based from the same model and checks each guard.
 
-### Where the cases run
+#### Where the cases run
 - **Parsing** (BPMN → net): [parser.test.ts](tests/parser.test.ts) — auto-discovers the `shouldsucceed` fixtures.
 - **Generation** (net → Solidity): [generator.test.ts](tests/generator.test.ts)
 - **On-chain execution** (deploy on Hardhat, replay logs): [execution.test.ts](tests/execution.test.ts) — set `REPLAY_NON_CONFORMING = true` to also run the non-conforming logs.

@@ -21,7 +21,7 @@ Chorpiler has additional tools that help with testing and interacting with such 
 | Looping behaviour  | ✔          |
 | Uncontrolled flow merge  | ✔          |
 
-I addition to choreographies, Chorpiler supports BPMN **process diagrams** and **collaboration diagrams**, which are translated onto the same internal representation (see [Multi-Model Support](#multi-model-support-process--collaboration-diagrams)).
+In addition to choreographies, Chorpiler supports BPMN **process diagrams** and **collaboration diagrams**, which are translated onto the same internal representation (see [Multi-Model Support](#multi-model-support-process--collaboration-diagrams)).
 
 ## Usage
 
